@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 
+import 'package:mp3_info/mp3_info.dart';
+
 import 'cache/cache_downloader.dart';
 import 'cache/cache_manager.dart';
 import 'notification.dart';
@@ -21,6 +23,8 @@ import 'loop.dart';
 import 'errors.dart';
 import 'PhoneStrategy.dart';
 import 'network_settings.dart';
+
+import 'package:http/http.dart' as http;
 
 export 'applifecycle.dart';
 export 'notification.dart';
@@ -580,10 +584,17 @@ class AssetsAudioPlayer {
             _current.add(null);
             _playerState.add(PlayerState.stop);
           } else {
-            final totalDurationMs =
+            var totalDurationMs =
                 _toDuration(call.arguments['totalDurationMs']);
 
             if (_lastOpenedAssetsAudio != null) {
+              if (totalDurationMs == Duration.zero) {
+                final response =
+                    await http.get(Uri.parse(_lastOpenedAssetsAudio!.path));
+                var mp3 = MP3Processor.fromBytes(response.bodyBytes);
+                totalDurationMs = mp3.duration;
+              }
+
               final playingAudio = PlayingAudio(
                 audio: _lastOpenedAssetsAudio!,
                 duration: totalDurationMs,
@@ -1039,10 +1050,8 @@ class AssetsAudioPlayer {
               audio.playSpeed ??
               this.playSpeed.valueOrNull ??
               defaultPlaySpeed,
-          'pitch': pitch ??
-              audio.pitch ??
-              this.pitch.valueOrNull ??
-              defaultPitch,
+          'pitch':
+              pitch ?? audio.pitch ?? this.pitch.valueOrNull ?? defaultPitch,
         };
         if (seek != null) {
           params['seek'] = seek.inMilliseconds.round();
@@ -1057,14 +1066,13 @@ class AssetsAudioPlayer {
               audio.networkHeaders ?? networkSettings.defaultHeaders;
         }
 
-        if(audio.drmConfiguration != null){
-          var drmMap  ={};
+        if (audio.drmConfiguration != null) {
+          var drmMap = {};
           drmMap['drmType'] = audio.drmConfiguration!.drmType.toString();
-          if(audio.drmConfiguration!.drmType==DrmType.clearKey){
+          if (audio.drmConfiguration!.drmType == DrmType.clearKey) {
             drmMap['clearKey'] = audio.drmConfiguration!.clearKey;
           }
           params['drmConfiguration'] = drmMap;
-
         }
 
         //region notifs
